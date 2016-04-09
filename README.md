@@ -39,4 +39,15 @@ What you need:
   - If you want to work in the source code, you will need a PICBasic compiler (PICBASIC PRO™), plans to switch to C              compiler.
 
 
-wotking on....
+Authors
+----------
+	Doug Schafer
+	Rhaurison Bergamin
+
+Contributors
+---------------
+	
+
+License
+----------
+	Mozilla Public License Version 2.0 – See License file.
