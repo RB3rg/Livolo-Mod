@@ -2,7 +2,7 @@
 ' 	LANGUAGE:		PicBasic Pro											
 '	PROJECT:		Livolo-Mod
 '	AUTHOR:			Douglas Schafer	
-'                   Rhaurison Bergamin							
+'                   		Rhaurison Bergamin							
 '	REVISION:		REV 2.1													
 ' 	DESCRIPTION:	Livolo Touch Switch Mod
 '					This program allows the sensor board of the Livolo switch to output serial commands to devices.														
@@ -25,15 +25,15 @@
 '
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 '====================================================
-'=========   CONFIG FOR 1 AND 2 Gangs   =============
-Channels con 1  ; Define number of LIVOLO Channels (Gangs): 1 or 2
+'=========   CONFIG FOR 1 AND 2 Gang   =============
+Channels con 1  ; Define number of LIVOLO Channels (Gang): 1 or 2
 LED_0    	var 	PortA.5    ; L3 A0
 LED_1    	var 	PortA.1    ; L2
 LED_2    	var 	PortB.4    ; L1
 LED_3    	var 	PortA.0    ; A3
 TRISC 		= %00000110
-'=========   CONFIG FOR 3 Gangs   ===================
-;Channels con 3  ; Define number of LIVOLO Channels (Gangs): 3
+'=========   CONFIG FOR 3 Gang   ===================
+;Channels con 3  ; Define number of LIVOLO Channels (Gang): 3
 ;LED_0    	var 	PortA.5    ; L2
 ;LED_1    	var 	PortA.1    ; L1
 ;LED_2    	var 	PortA.0    ; A3
@@ -44,7 +44,7 @@ RELAY_A    var     PortC.7    ; SW1
 RELAY_B    var     PortC.5    ; SW2
 RELAY_C    var     PortC.6    ; SW3
                                   
-DEFINE OSC 4			' Define Oscilator as 4Mhz
+DEFINE OSC 4		' Define Oscilator as 4Mhz
 DEFINE  HSER_BAUD 1200  ' We Use 1200 baud to increase the distance range
 DEFINE  HSER_CLROERR 1  ' Auto clear over-run errors
 DEFINE HSER_RCSTA 90h   ' Enable serial port & continuous receive 	          
@@ -137,8 +137,7 @@ next
 LED_3 = 0
 
 '''''''''''''''''''''''''''''''''''''''''    USER NOTES    ''''''''''''''''''''''''''''''''''''''''''''''''''''
-;; WARNING:  THIS PROGRAM HAS ONLY BEEN TESTED ON 2GANG, AND 3GANG SWITCH'S ;;
-;; THESE MUST BE SET CORRECTLY FOR YOUR SWITCH TYPE OR PROGRAM WILL NOT WORK ;;
+;; WARNING:  THIS PROGRAM HAS BEEN TESTED ON 1 Gang, 2 GANG, AND 3 GANG SWITCH'S ;;
 
 GoSub CALIBRATE
 hserout[13,10]
