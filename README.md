@@ -38,6 +38,9 @@ What you need:
   - Not necessary but Recommended to extend the range for the Serial comms: A pair of MAX3232 module, google it. 
   - If you want to work in the source code, you will need a PICBasic compiler (PICBASIC PRO™), plans to switch to C              compiler.
 
+How to Do it?
+-------------
+	See file docs/howto.html (working on... coming soon)
 
 Authors
 ----------
