@@ -1,0 +1,365 @@
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''									
+' 	LANGUAGE:		PicBasic Pro											
+'	PROJECT:		Livolo-Mod
+'	AUTHOR:			Douglas Schafer	
+'                   Rhaurison Bergamin							
+'	REVISION:		REV 2.1													
+' 	DESCRIPTION:	Livolo Touch Switch Mod
+'					This program allows the sensor board of the Livolo switch to output serial commands to devices.														
+'																			
+' 	DEVICE:			PIC16F690											
+' 	FUSE SETTINGS:	OSC = INTRC_IO, MCLRE = Disable							
+'																			
+'    		PIC16F688:           +--v--+                                       
+'   					+5V VDD >[     ]< VSS 0v                                 
+'   						 A5 <[     ]> A0 
+'   						 A4 <[     ]> A1 LED2                   
+'   						 A3 <[     ]> A2 TCHARGE
+'   						 C5 <[     ]> C0 
+'   						 C4 <[     ]< C1 TOUCH1               
+'   						 C3 <[     ]< C2 TOUCH2
+'   						 C6 <[     ]> B4 LED1
+'   		 	 1KR		 C7 <[     ]< B5 RX                 
+'   		---/\/\/\/--- TX B7 <[     ]> B6                
+'                                +-----+   
+'
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+'====================================================
+'=========   CONFIG FOR 1 AND 2 Gangs   =============
+Channels con 1  ; Define number of LIVOLO Channels (Gangs): 1 or 2
+LED_0    	var 	PortA.5    ; L3 A0
+LED_1    	var 	PortA.1    ; L2
+LED_2    	var 	PortB.4    ; L1
+LED_3    	var 	PortA.0    ; A3
+TRISC 		= %00000110
+'=========   CONFIG FOR 3 Gangs   ===================
+;Channels con 3  ; Define number of LIVOLO Channels (Gangs): 3
+;LED_0    	var 	PortA.5    ; L2
+;LED_1    	var 	PortA.1    ; L1
+;LED_2    	var 	PortA.0    ; A3
+;LED_3    	var 	PortB.4    ; L3 A0
+;TRISC 		= %00001110
+'=====================================================
+RELAY_A    var     PortC.7    ; SW1
+RELAY_B    var     PortC.5    ; SW2
+RELAY_C    var     PortC.6    ; SW3
+                                  
+DEFINE OSC 4			' Define Oscilator as 4Mhz
+DEFINE  HSER_BAUD 1200  ' We Use 1200 baud to increase the distance range
+DEFINE  HSER_CLROERR 1  ' Auto clear over-run errors
+DEFINE HSER_RCSTA 90h   ' Enable serial port & continuous receive 	          
+'define HSER_TXSTA 24H  ''Enable transmit, BRGH = 1   (for baud >=9600 only)
+define HSER_TXSTA 20H   ' for 1200 bps
+;DEFINE HSER_SPBRG 25                                 '   routine when you get data.
+;OSCCON		= %01110001			' set OSC fuse bits to 8MHz
+OSCCON		= %01100001			' set OSC fuse bits to 4MHz
+;OSCCON		= %01010001			' set OSC fuse bits to 2MHz
+ANSEL		= %00000000			' Analogue select 'off'
+ANSELH 		= %00000000			' Analogue select 'off'
+WPUA 		= %00000000    		' Set Pullups PortA 'off'
+WPUB 		= %00000000    		' Set Pullups PortB 'off'
+IOCA		= %00000000			' Interupt on change 'off'
+INTCON      = %00000000         'initialize INTCON register, Enable Int
+OPTION_REG 	= %10110001
+CM1CON0		= %10010101			' Comparator C1 Control Register 0
+CM2CON0		= %10100101			' Comparator C2 Control Register 0
+CM2CON1		= %00000000			' Comparator C2 Control Register 1
+SRCON		= %11110000			' SR Latch Control Register
+VRCON		= %10000111			' Voltage Ref Control Register
+PORTA 		= %00000000
+TRISA 		= %00000100			' bit2 is for Timer input
+PORTB 		= %00000000
+TRISB 		= %00100000	        ' port B5 is RX input
+PORTC 		= %00000000
+'TXSTA  = %00100100
+'RCSTA  = %10010000
+;BAUDCTL = %00000000
+;ADCON1      = %00001111    'Set up ADCON1 register no matter what you're doing!
+SW_ON		var		Bit[4]
+SW_ON[0] = 0	; L3 (Left)							' SWITCH.0 select 1 if used, 0 if not: GANG TYPE, 4,
+SW_ON[1] = 0    ; L1 (right)									' SWITCH.1 select 1 if used, 0 if not: GANG TYPE, 4, 2, and 1
+SW_ON[2] = 0	; L2 (left/Center)								' SWITCH.2 select 1 if used, 0 if not: GANG TYPE, 4, 2,
+SW_ON[3] = 0	; L4								' SWITCH.3 select 1 if used, 0 if not: GANG TYPE, 4,
+'''''''''''''''''''''''''''''''''''''''    DEFINE VARIABLES    '''''''''''''''''''''''''''''''''''''''''''''''''''
+SW_raw		var		Word[4]
+SW_average	var		Word[4]
+debounce	var		Byte[4]
+sense_time	var		Word[4]
+sense       var     word
+ch			var		Byte
+i			var		Byte
+b1          var     byte
+docalibrate var     word
+MLED1       var     byte
+clear
+; devine how sensitivy it is. 
+;increase to less sensitive, decrease makes it more sensitive
+; 20 is a good number.
+sense = 20
+
+if channels = 1 then
+    SW_ON[1] = 1
+endif
+if channels = 2 then
+    SW_ON[1] = 1
+    SW_ON[2] = 1
+endif
+if channels = 3 then
+    SW_ON[1] = 1
+    SW_ON[2] = 1
+    SW_ON[3] = 1
+endif
+RELAY_A = 0
+RELAY_B = 0
+RELAY_C = 0
+LED_0 = 0
+LED_1 = 0
+LED_2 = 0
+LED_3 = 0
+docalibrate=0
+
+for i=0 to 9
+    toggle LED_1
+    pause 100
+next
+LED_1 = 0
+
+for i=0 to 9
+    toggle LED_2
+    pause 100
+next
+LED_2 = 0
+
+for i=0 to 9
+    toggle LED_3
+    pause 100
+next
+LED_3 = 0
+
+'''''''''''''''''''''''''''''''''''''''''    USER NOTES    ''''''''''''''''''''''''''''''''''''''''''''''''''''
+;; WARNING:  THIS PROGRAM HAS ONLY BEEN TESTED ON 2GANG, AND 3GANG SWITCH'S ;;
+;; THESE MUST BE SET CORRECTLY FOR YOUR SWITCH TYPE OR PROGRAM WILL NOT WORK ;;
+
+GoSub CALIBRATE
+hserout[13,10]
+hserout[13,10]
+hSerout["CH1:",DEC LED_1,",CH2:",dec LED_2,",CH3:",dec LED_3,",CH4:",dec LED_0,13,10]
+''''''''''''''''''''''''''''''''''''''''''    MAIN PROGRAM    ''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+START:
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; CHECK SW0
+ch=0
+If SW_ON[ch]=0 Then SKIP0	
+GoSub CHECK_SW
+If debounce[ch] = 1 Then
+	Toggle LED_0
+		If LED_0=1 Then
+		  hSerout ["CH0:1",13,10]
+		  hSerout ["CH0:1",13,10]
+		  hSerout ["CH0:1",13,10]
+		Else
+		  hSerout ["CH0:0",13,10]
+		  hSerout ["CH0:0",13,10]
+		  hSerout ["CH0:0",13,10]
+		EndIf
+EndIf
+'Serout2 TX, 84, ["RAW", DEC1 ch, ": ", DEC5 SW_raw[ch], ",   AVE", DEC1 ch, ": ", DEC5 SW_average[ch], ",   TIME", DEC1 ch, ": ", DEC5 sense_time[ch], ",   "] ;THIS IS USED FOR TESTING
+SKIP0:
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; CHECK SW1
+ch=1
+If SW_ON[ch]=0 Then SKIP1
+GoSub CHECK_SW
+If debounce[ch] = 1 Then
+	Toggle LED_1
+	'docalibrate = docalibrate + 1
+		If LED_1=1 Then
+			hSerout ["CH1:1",13,10]			' Turn light OFF comand for external device
+			hSerout ["CH1:1",13,10]         ' send it 3 times to ensure comms
+			hSerout ["CH1:1",13,10]
+			RELAY_A = 1
+		Else
+			hSerout ["CH1:0",13,10]			' Turn light ON comand for external device
+			hSerout ["CH1:0",13,10]
+			hSerout ["CH1:0",13,10]
+			RELAY_A = 0
+		EndIf
+EndIf
+'Serout2 TX, 84, ["RAW", DEC1 ch, ": ", DEC5 SW_raw[ch], ",   AVE", DEC1 ch, ": ", DEC5 SW_average[ch], ",   TIME", DEC1 ch, ": ", DEC5 sense_time[ch], ",   "] ;THIS IS USED FOR TESTING
+SKIP1:
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; CHECK SW2
+ch=2
+If SW_ON[ch]=0 Then SKIP2	
+GoSub CHECK_SW
+If debounce[ch] = 1 Then
+	Toggle LED_2
+		If LED_2=1 Then
+			hSerout ["CH2:1",13,10]			' Turn light OFF comand for external device
+			hSerout ["CH2:1",13,10]
+			hSerout ["CH2:1",13,10]
+			RELAY_B = 1
+		Else
+			hSerout ["CH2:0",13,10]			' Turn light ON comand for external device
+			hSerout ["CH2:0",13,10]
+			hSerout ["CH2:0",13,10]
+			RELAY_B = 0
+		EndIf
+EndIf
+'Serout2 TX, 84, ["RAW", DEC1 ch, ": ", DEC5 SW_raw[ch], ",   AVE", DEC1 ch, ": ", DEC5 SW_average[ch], ",   TIME", DEC1 ch, ": ", DEC5 sense_time[ch], ",   "] ;THIS IS USED FOR TESTING
+SKIP2:
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; CHECK SW3
+ch=3
+If SW_ON[ch]=0 Then SKIP3
+GoSub CHECK_SW
+If debounce[ch] = 1 Then
+	Toggle LED_3
+		If LED_3=1 Then
+         	hSerout ["CH3:1",13,10]			' Turn light OFF comand for external device
+         	hSerout ["CH3:1",13,10]
+         	hSerout ["CH3:1",13,10]
+			RELAY_C = 1
+		Else
+         	hSerout ["CH3:0",13,10]			' Turn light OFF comand for external device
+         	hSerout ["CH3:0",13,10]
+         	hSerout ["CH3:0",13,10]
+			RELAY_C = 0
+		EndIf
+EndIf
+SKIP3:
+b1=10
+hserin 50,Timeout,[b1]
+'pause 50
+' Once Received in the Serial:
+' 0 -> Return the Status
+' 1 -> turn CH1 on
+' 2 -> turn CH2 on
+' 3 -> turn CH3 on
+' 4 -> Reserved
+' 5 -> turn CH1 off
+' 6 -> turn CH2 off
+' 7 -> turn CH3 off
+' 8 -> Reserved
+' 9 -> Calibrate
+if b1 <> 10 then
+    IF b1 = "0" THEN 
+    	   hSerout["CH1:",DEC LED_1,",CH2:",dec LED_2,",CH3:",dec LED_3,",CH4:",dec LED_0,13,10]
+           'hSerout["CH2:",DEC LED_2,13,10]
+           'hSerout["CH3:",DEC LED_3,13,10]
+           'hSerout["CH4:",DEC LED_0,13,10]			
+    endif
+    IF b1 = "1" THEN 
+        LED_1 = 1
+        hSerout["CH1:",DEC LED_1,13,10]
+        hSerout["CH1:",DEC LED_1,13,10]
+        RELAY_A = 1			
+    endif
+    IF b1 = "5"   THEN 
+        LED_1 = 0
+        hSerout ["CH1:",dec LED_1,13,10]
+        hSerout ["CH1:",dec LED_1,13,10]			  
+        RELAY_A = 0
+    endif
+    IF (b1="2") and (SW_ON[2]=1) THEN 
+        LED_2 = 1
+	    hSerout["CH2:",dec LED_2,13,10]
+        hSerout["CH2:",dec LED_2,13,10]			 
+	    RELAY_B = 1
+    endif
+    IF (b1="6") and (SW_ON[2]=1) THEN 
+        LED_2 = 0
+        hSerout ["CH2:",dec LED_2,13,10]
+        hSerout ["CH2:",dec LED_2,13,10]		   
+        RELAY_B = 0
+    endif
+    IF (b1="3") and (SW_ON[3]=1) THEN 
+        LED_3 = 1
+	    hSerout["CH3:",dec LED_3,13,10]	
+        hSerout["CH3:",dec LED_3,13,10]		 
+	    RELAY_C = 1
+    endif
+    IF (b1="7") and (SW_ON[3]=1) THEN 
+        LED_3 = 0
+        hSerout ["CH3:",dec LED_3,13,10]
+        hSerout ["CH3:",dec LED_3,13,10]		   
+        RELAY_C = 0
+    endif
+    IF (b1="4") and (SW_ON[0]=1) THEN 
+        LED_0 = 1
+	    hSerout["CH0:",dec LED_0,13,10]	
+        hSerout["CH0:",dec LED_0,13,10]		 
+	    ;RELAY_CH3 = 1
+    endif
+    IF (b1="8") and (SW_ON[0]=1) THEN 
+        LED_0 = 0
+	    hSerout["CH0:",dec LED_0,13,10]	
+        hSerout["CH0:",dec LED_0,13,10]		 
+	    ;RELAY_CH3 = 0
+    endif
+    IF (b1="9") THEN 
+         hSerout ["CH0:",dec LED_0,13,10]
+         pause 20	
+         hSerout ["CH1:",dec LED_1,13,10]
+         pause 20
+         hSerout ["CH2:",dec LED_2,13,10]
+         pause 20
+         hSerout ["CH3:",dec LED_3,13,10]
+         pause 20
+         MLED1 = LED_1
+         GoSub CALIBRATE
+         for i=0 to 9
+            toggle LED_1
+            pause 200
+        next
+        LED_1 = MLED1	   
+    endif
+endif
+GoTo START
+
+Timeout:
+    goto START
+
+'''''''''''''''''''''''''''''''''''''''''    CHECK SWITCHES    '''''''''''''''''''''''''''''''''''''''''''''''''''
+CHECK_SW:
+    CM1CON0.0 = ch.0								' change to correct input ch (bit 0)
+    CM1CON0.1 = ch.1								' change to correct input ch (bit 1)
+    CM2CON0.0 = ch.0								' change to correct input ch (bit 0)
+    CM2CON0.1 = ch.1								' change to correct input ch (bit 1)
+    TMR0 = 0										' Reset the Timer 0
+    PauseUs sense_time[ch]							' Pause for appropriate time to get default 200 cycles
+    SW_raw[ch] = TMR0								' Get count value from Timer0
+    SW_raw[ch] = SW_raw[ch]*10						' Do some averaging
+    ;SW_average[ch] = (SW_average[ch]*9)+SW_raw[ch]
+    ;SW_average[ch] = SW_average[ch]/10
+    ;SW_average[ch] = SW_average[ch] + (SW_raw[ch] - SW_average[ch])/10
+    SW_average[ch] = (9*SW_average[ch]+SW_raw[ch])/10
+
+    ;If SW_raw[ch] < (SW_average[ch]-10) Then		 Check if switch is touched
+    If SW_raw[ch] < (SW_average[ch]- sense) Then ; 
+	   debounce[ch] = debounce[ch] + 1				' Debounce switch
+    Else
+	   debounce[ch] = 0
+    EndIf
+Return
+
+'''''''''''''''''''''''''''''''''''''''''    CHECK SWITCHES    '''''''''''''''''''''''''''''''''''''''''''''''''''
+CALIBRATE:
+For ch=1 to 3
+	If SW_ON[ch]=1 Then
+	    sense_time[ch] = 0 ;it need a start point???  
+        ;SW_average[ch] = 0 inicial 
+		CAL_LOOP:
+		sense_time[ch]=sense_time[ch]+1
+		GoSub CHECK_SW
+		If SW_raw[ch]<2000 Then
+			GoTo CAL_LOOP
+		EndIf
+	EndIf
+next
+Return
+
+END
+
+
+
